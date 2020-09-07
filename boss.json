@@ -1,0 +1,11 @@
+{
+  "name": "Intf.JSON",
+  "description": "Interface para facilitar manipulação de objetos JSON",
+  "version": "0.0.1",
+  "private": false,
+  "homepage": "",
+  "mainsrc": "src/",
+  "supported": "xe+",
+  "dprojFile": "",
+  "dependencies": {}
+}
