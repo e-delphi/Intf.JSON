@@ -1,2 +1,2 @@
 # Intf.JSON
-Interface facilitar manipulação de objetos JSON
+Interface para facilitar manipulação de objetos JSON
