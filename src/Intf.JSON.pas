@@ -11,10 +11,13 @@ type
   IJSONObject = interface
     ['{54A1B884-F074-41EC-AE49-846571360A7E}']
     function GetJSON: Variant;
-    procedure SetJSON(sJSON: Variant);
+    procedure SetJSON(Value: Variant);
     function GetAsJSON: TJSONObject;
+    function GetInstanceOwner: Boolean;
+    procedure SetInstanceOwner(Value: Boolean);
     property JSON: Variant read GetJSON write SetJSON;
     property AsJSON: TJSONObject read GetAsJSON;
+    property InstanceOwner: Boolean read GetInstanceOwner write SetInstanceOwner;
   end;
 
   IJSONArray = interface
@@ -22,40 +25,52 @@ type
     function GetJSON: Variant;
     procedure SetJSON(sJSON: Variant);
     function GetAsJSON: TJSONArray;
+    function GetInstanceOwner: Boolean;
+    procedure SetInstanceOwner(bInstanceOwner: Boolean);
     property JSON: Variant read GetJSON write SetJSON;
     property AsJSON: TJSONArray read GetAsJSON;
+    property InstanceOwner: Boolean read GetInstanceOwner write SetInstanceOwner;
   end;
 
 type
   TIJSONObject = class(TInterfacedObject, IJSONObject)
   private
+    FInstanceOwner: Boolean;
     FObjectJSON: TJSONObject;
     FVariant: Variant;
     function GetJSON: Variant;
-    procedure SetJSON(sJSON: Variant);
+    procedure SetJSON(Value: Variant);
     function GetAsJSON: TJSONObject;
+    function GetInstanceOwner: Boolean;
+    procedure SetInstanceOwner(Value: Boolean);
   public
-    constructor Create; overload;
-    constructor Create(sJSON: String); overload;
-    constructor Create(joJSON: TJSONObject); overload;
+    constructor Create(bInstanceOwner: Boolean = True); overload;
+    constructor Create(sJSON: String; bInstanceOwner: Boolean = True); overload;
+    constructor Create(joJSON: TJSONObject; bInstanceOwner: Boolean = True); overload;
     destructor Destroy; override;
     property JSON: Variant read GetJSON write SetJSON;
     property AsJSON: TJSONObject read GetAsJSON;
+    property InstanceOwner: Boolean read GetInstanceOwner write SetInstanceOwner;
     class function New: Variant;
   end;
 
   TIJSONArray = class(TInterfacedObject, IJSONArray)
   private
+    FInstanceOwner: Boolean;
     FObjectJSON: TJSONArray;
     FVariant: Variant;
     function GetJSON: Variant;
-    procedure SetJSON(sJSON: Variant);
+    procedure SetJSON(Value: Variant);
     function GetAsJSON: TJSONArray;
+    function GetInstanceOwner: Boolean;
+    procedure SetInstanceOwner(Value: Boolean);
   public
-    constructor Create; overload;
+    constructor Create(bInstanceOwner: Boolean = True);
     destructor Destroy; override;
     property JSON: Variant read GetJSON write SetJSON;
     property AsJSON: TJSONArray read GetAsJSON;
+    property InstanceOwner: Boolean read GetInstanceOwner write SetInstanceOwner;
+    class function New: Variant;
   end;
 
 implementation
@@ -143,7 +158,10 @@ begin
   if TVarDataRecordData(V).JSON is TJSONArray then
   begin
     if Name.ToLower.Equals('count') then
-      Variant(dest) := TJSONArray(TVarDataRecordData(V).JSON).Count;
+      Variant(dest) := TJSONArray(TVarDataRecordData(V).JSON).Count
+    else
+    if Name.ToLower.Equals('last') then
+      Variant(dest) := JSON2Variant(TJSONArray(TVarDataRecordData(V).JSON).Items[Pred(TJSONArray(TVarDataRecordData(V).JSON).Count)]);
   end;
 end;
 
@@ -159,9 +177,9 @@ begin
     1: jvItem := TJSONNull.Create;
     7: jvItem := TJSONString.Create(DateToISO8601(Variant(Value)));
     8,256,258:  jvItem := TJSONString.Create(Variant(Value));
-    2,3,4,5,6,16,17,18,19,20,21:  jvItem := TJSONNumber.Create(Variant(Value));
+    2,3,4,5,6,16,17,18,19,20,21,16389:  jvItem := TJSONNumber.Create(Variant(Value));
     11: jvItem := TJSONBool.Create(Variant(Value));
-    271: jvItem := TJSONValue(Value.VPointer);
+    271, 275: jvItem := TJSONValue(Value.VPointer);
   else
     raise Exception.Create('Tipo não esperado!');
   end;
@@ -179,7 +197,7 @@ begin
     end;
 
     if sNomePar.IsEmpty then
-      sNomePar := Name.ToLower;
+      sNomePar := Name.ToUpper;
 
     TJSONObject(TVarDataRecordData(V).JSON).AddPair(sNomePar, jvItem);
   end
@@ -236,10 +254,8 @@ begin
     if Name.ToLower.Equals('add') then
     begin
       for Value in Arguments do
-      begin
         SetProperty(V, Name, Value);
-        Variant(dest) := JSON2Variant(TVarDataRecordData(V).JSON);
-      end;
+      Variant(dest) := JSON2Variant(TVarDataRecordData(V).JSON);
     end;
   end;
 end;
@@ -248,28 +264,31 @@ end;
 
 class function TIJSONObject.New: Variant;
 begin
-  Result := TIJSONObject.Create.JSON;
+  Result := JSON2Variant(TJSONObject.Create);
 end;
 
-constructor TIJSONObject.Create(sJSON: String);
+constructor TIJSONObject.Create(sJSON: String; bInstanceOwner: Boolean = True);
 begin
+  FInstanceOwner := True;
   FObjectJSON := TJSONObject(TJSONObject.ParseJSONValue(sJSON));
 end;
 
-constructor TIJSONObject.Create(joJSON: TJSONObject);
+constructor TIJSONObject.Create(joJSON: TJSONObject; bInstanceOwner: Boolean = True);
 begin
+  FInstanceOwner := bInstanceOwner;
   FObjectJSON := joJSON;
 end;
 
-constructor TIJSONObject.Create;
+constructor TIJSONObject.Create(bInstanceOwner: Boolean = True);
 begin
-  inherited;
+  FInstanceOwner := bInstanceOwner;
   FObjectJSON := TJSONObject.Create;
 end;
 
 destructor TIJSONObject.Destroy;
 begin
-  FreeAndNil(FObjectJSON);
+  if FInstanceOwner then
+    FreeAndNil(FObjectJSON);
   inherited;
 end;
 
@@ -287,28 +306,44 @@ begin
   Result := FVariant;
 end;
 
-procedure TIJSONObject.SetJSON(sJSON: Variant);
+function TIJSONObject.GetInstanceOwner: Boolean;
+begin
+  Result := FInstanceOwner;
+end;
+
+procedure TIJSONObject.SetInstanceOwner(Value: Boolean);
+begin
+  FInstanceOwner := Value;
+end;
+
+procedure TIJSONObject.SetJSON(Value: Variant);
 begin
   if Assigned(FObjectJSON) then
     FreeAndNil(FObjectJSON);
 
-  if VarIsStr(sJSON) then
-    FObjectJSON := TJSONObject(TJSONObject.ParseJSONValue(sJSON))
+  if VarIsStr(Value) then
+    FObjectJSON := TJSONObject(TJSONObject.ParseJSONValue(Value))
   else
     raise Exception.Create('Informe uma string com o JSON!');
 end;
 
 { TIJSONArray }
 
-constructor TIJSONArray.Create;
+class function TIJSONArray.New: Variant;
 begin
-  inherited;
+  Result := JSON2Variant(TJSONArray.Create);
+end;
+
+constructor TIJSONArray.Create(bInstanceOwner: Boolean = True);
+begin
+  FInstanceOwner := bInstanceOwner;
   FObjectJSON := TJSONArray.Create;
 end;
 
 destructor TIJSONArray.Destroy;
 begin
-  FreeAndNil(FObjectJSON);
+  if FInstanceOwner then
+    FreeAndNil(FObjectJSON);
   inherited;
 end;
 
@@ -326,13 +361,23 @@ begin
   Result := FVariant;
 end;
 
-procedure TIJSONArray.SetJSON(sJSON: Variant);
+function TIJSONArray.GetInstanceOwner: Boolean;
+begin
+  Result := FInstanceOwner;
+end;
+
+procedure TIJSONArray.SetInstanceOwner(Value: Boolean);
+begin
+  FInstanceOwner := Value;
+end;
+
+procedure TIJSONArray.SetJSON(Value: Variant);
 begin
   if Assigned(FObjectJSON) then
     FreeAndNil(FObjectJSON);
 
-  if VarIsStr(sJSON) then
-    FObjectJSON := TJSONArray(TJSONObject.ParseJSONValue(sJSON))
+  if VarIsStr(Value) then
+    FObjectJSON := TJSONArray(TJSONObject.ParseJSONValue(Value))
   else
     raise Exception.Create('Informe uma string com o JSON!');
 end;
