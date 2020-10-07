@@ -32,9 +32,6 @@ type
     property InstanceOwner: Boolean read GetInstanceOwner write SetInstanceOwner;
   end;
 
-type
-  TObj = (obj);
-
   TIJSONObject = class(TInterfacedObject, IJSONObject)
   private
     FInstanceOwner: Boolean;
@@ -51,11 +48,11 @@ type
     class function New(var Instance: IJSONObject; bInstanceOwner: Boolean = True): Variant; overload;
     class function New(sJSON: String; bInstanceOwner: Boolean = True): IJSONObject; overload;
     class function Init: Variant; overload;
+    class function ToJSON(Inst: Variant): TJSONObject; overload;
     destructor Destroy; override;
     property JSON: Variant read GetJSON write SetJSON;
     property AsJSON: TJSONObject read GetAsJSON;
     property InstanceOwner: Boolean read GetInstanceOwner write SetInstanceOwner;
-
   end;
 
   TIJSONArray = class(TInterfacedObject, IJSONArray)
@@ -71,6 +68,7 @@ type
   public
     class function New(var Instance: IJSONArray; bInstanceOwner: Boolean = True): Variant;
     class function Init: Variant;
+    class function ToJSON(Inst: Variant): TJSONArray; overload;
     destructor Destroy; override;
     property JSON: Variant read GetJSON write SetJSON;
     property AsJSON: TJSONArray read GetAsJSON;
@@ -96,7 +94,6 @@ type
     function DoFunction(var Dest: TVarData; const V: TVarData; const Name: string; const Arguments: TVarDataArray): Boolean; override;
   end;
 
-type
   TVarDataRecordData = packed record
     VType: TVarType;
     Reserved1, Reserved2, Reserved3: Word;
@@ -134,6 +131,9 @@ begin
   begin
     jvItem := TJSONObject(TVarDataRecordData(V).JSON).GetValue(Name);
 
+    if jvItem is TJSONNumber then
+      Variant(dest) := TJSONNumber(jvItem).AsDouble
+    else
     if jvItem is TJSONString then
     begin
       if (function(sText: String): Boolean
@@ -152,9 +152,6 @@ begin
       else
         Variant(dest) := TJSONString(jvItem).Value
     end
-    else
-    if jvItem is TJSONNumber then
-      Variant(dest) := TJSONNumber(jvItem).AsDouble
     else
     if jvItem is TJSONBool then
       Variant(dest) := TJSONBool(jvItem).AsBoolean
@@ -315,6 +312,11 @@ begin
   Result := Inst;
 end;
 
+class function TIJSONObject.ToJSON(Inst: Variant): TJSONObject;
+begin
+  Result := TJSONObject(TVarDataRecordData(Inst).JSON);
+end;
+
 destructor TIJSONObject.Destroy;
 begin
   if FInstanceOwner then
@@ -415,6 +417,11 @@ begin
     FObjectJSON := TJSONArray(TJSONObject.ParseJSONValue(Value))
   else
     raise Exception.Create('Informe uma string com o JSON!');
+end;
+
+class function TIJSONArray.ToJSON(Inst: Variant): TJSONArray;
+begin
+  Result := TJSONArray(TVarDataRecordData(Inst).JSON);
 end;
 
 initialization
